@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>test</title>
+        <meta charset="UTF-8"`>
+    </head>
+    <body>
+        <button id="btn">连接</button>
+        <button id="btn_send">发送</button>
+        <input id="ipt">
+        <div id="res_show">等待结果返回...</div>
+    </body>
+</html>
+
+<script>
+    var cnt = false
+    var parter_id = new Set()
+    var wsc
+    document.getElementById('btn').addEventListener("click",(evt)=>{
+        if(cnt==false)
+        {
+            wsc = new WebSocket("ws://127.0.0.1:3333")
+            wsc.onopen = (evt)=>{
+                console.log("open:"+evt)
+                cnt = true
+            }
+            
+            wsc.onclose = (evt)=>{
+                console.log("close:"+evt)
+            }
+            wsc.onerror = (evt)=>{
+                console.log("error:"+ evt)
+            }
+            wsc.onmessage = (evt)=>{
+                var data = JSON.parse(evt.data)
+                if(data["type"]=="partner_id"){
+                    parter_id.add(data["data"]["id"])
+                    console.log(parter_id)
+                }
+                else if(data["type"]=="message"){
+                    var str = data["data"]
+                    document.getElementById("res_show").innerHTML += ("<br>"+str)
+                }
+                else if(data["type"]=="del_partner"){
+                    parter_id.delete(data["data"]["id"])
+                    console.log(parter_id)
+                }
+        }}
+    })
+    document.getElementById("btn_send").addEventListener("click",(evt)=>{
+        if(cnt==true){
+            var str = document.getElementById("ipt").value
+            for(let id_to of parter_id){
+                wsc.send(JSON.stringify({id_to:id_to,data:str}))
+                console.log(id_to)
+            }
+        }
+    })
+</script>

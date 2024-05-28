@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <video id="local_video" autoplay ></video>
+        <button id="open_video">打开摄像头</button>
+    </body>
+    <script>
+        var constraints = {
+            audio:true,
+            video:{width:1280,height :800 }
+        };
+        function onOpenVideo(e) {
+            navigator.mediaDevices.getUserMedia(constraints).then(function (mediaStream) {
+                var video = document.querySelector("#local_video");
+                console.log(video.id)
+                video.srcObject = mediaStream
+            })
+            .catch(function(err){
+                console.log(err.name+": "+err.message);
+            });
+        }
+        document.getElementById("open_video").addEventListener("click",onOpenVideo);
+    </script>
+</html>
