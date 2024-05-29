@@ -1,15 +1,25 @@
+const express = require("express")
+const http = require("http")
 const web_socket = require("ws")
 // web_socket_server  1v1
-const wss = new web_socket.Server({port:3333})
+const server = http.createServer()
+const wss = new web_socket.Server({server})
+
+const app = express()
+app.get("/",(req,res)=>{
+    var dir = process.cwd()
+    res.sendFile(dir+"/pages/client_main.html")
+    // console.log("aaaaaa")
+})
+server.on("request",app)
+
 
 function createID(){
     return Math.random().toString(16).substring(2,6)
 }
 
 var people = {}
-wss.on("listening",()=>{
-    console.log('listening...')
-})
+
 wss.on("connection",(ws)=>{
     var id = createID()
     console.log(' 新的连接建立,id分配为: '+id)
@@ -46,4 +56,8 @@ wss.on("connection",(ws)=>{
     }
     ws.onclose = deleteFromSession
     ws.onerror = deleteFromSession
+})
+
+server.listen(3333,()=>{
+    console.log('listening...')
 })
