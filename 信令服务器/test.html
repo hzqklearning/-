@@ -1,23 +1,66 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>test</title>
+        <title>Real-time communication with WebRTC</title>
         <meta charset="UTF-8"`>
+        <style>
+            body{
+                font-family: Arial, Helvetica, sans-serif;
+                margin: 0;
+                padding: 20px;
+                box-sizing: border-box;
+                width: 100%;
+            }
+            .container{
+                display: flex;
+                flex-direction:row;
+                gap:10px;
+                width: 100%;
+            }
+            .left-container{
+                width: 50vw;
+            }
+            .video-container{
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            video{
+                width: 200px;
+                height: 170px;
+            }
+            input,button{
+                padding: 3px;
+                margin: 3px;
+            }
+        </style>
     </head>
     <body>
-        姓名:<input id="name">
-        <button id="btn">(输入名字后请点击)连接</button>
-        <br>
-        文本发送：<input id="ipt"><button id="btn_send">发送</button>
-        <div id="res_show">等待结果返回...</div>
+        <div class="container">
+            <div class="left-container">
+                姓名:<input id="name">
+                <button id="btn">(输入名字后请点击)连接</button>
+                <br>
+                文本发送：<input id="ipt">
+                <button id="btn_send">发送</button>
+                <div id="res_show">等待结果返回...</div>
+            </div>
+            <div class="video-container">
+                <button id="connection">视频连接</button>
+                <video id="local_video" autoplay playsinline></video>
+                <video id="remote_video" autoplay playsinline></video>
+            </div>
+            
+        </div>
     </body>
 </html>
 
 <script>
-    var cnt = false
-    var parter_id = new Set()
-    var wsc
+    var cnt = false //是否连接到信令服务器
+    var parter_id = new Set() //对方的id信息（信令服务器转发时需要用）
+    var wsc //web_socket_client 
     var random_emo = ["&#128520;","&#128525;","&#128548;"]
+    //点击按钮建立连接
     document.getElementById("btn").addEventListener("click",(evt)=>{
         if(cnt==false)
         {
@@ -36,7 +79,7 @@
                 wsc.onerror = (evt)=>{
                     console.log("error:"+ evt)
                 }
-                wsc.onmessage = (evt)=>{
+                wsc.onmessage = async (evt)=>{
                     var data = JSON.parse(evt.data)
                     if(data["type"]=="partner_id"){
                         parter_id.add(data["data"]["id"])
@@ -44,8 +87,36 @@
                         console.log(parter_id)
                     }
                     else if(data["type"]=="message"){
-                        var centence = data["data"]["centence"]
-                        document.getElementById("res_show").innerHTML += ("<br>"+centence)
+                        var m_type = data["data"]["type"]
+                        if(m_type=="word"){
+                            var centence = data["data"]["centence"]
+                            document.getElementById("res_show").innerHTML += ("<br>"+centence)
+                        }
+                        else if(m_type=="answer"){
+                            var sdp = data["data"]["sdp"]
+                            await peer_connection.setRemoteDescription({
+                                type:"answer",
+                                sdp:sdp
+                            })
+                        }
+                        else if(m_type=="call_ICE"){
+                            var sdp = data["data"]["sdp"]
+                            await peer_connection.setRemoteDescription({
+                                type:"offer",
+                                sdp:sdp
+                            })
+                            peer_connection.createAnswer().then(async answer=>{
+                                await peer_connection.setLocalDescription(answer)
+                                for(let id_to of parter_id){
+                                    wsc.send(JSON.stringify({id_to:id_to,data:{type:"answer",sdp:answer.sdp}}))
+                                }
+                            })
+                        }
+                        else if(m_type=="candidate_ICE"){
+                            peer_connection.addIceCandidate(data["data"]["candidate"])
+                            // console.log(data["data"]["candidate"])
+                        }
+                        
                     }
                     else if(data["type"]=="del_partner"){
                         parter_id.delete(data["data"]["id"])
@@ -56,6 +127,7 @@
             }
         }
     })
+    //点击按钮进行发送
     document.getElementById("btn_send").addEventListener("click",(evt)=>{
         if(cnt==true){
             var str = document.getElementById("ipt").value
@@ -63,20 +135,107 @@
             var new_line = name+": "+str
             document.getElementById("res_show").innerHTML += ("<br>"+new_line)
             for(let id_to of parter_id){
-                wsc.send(JSON.stringify({id_to:id_to,data:{centence:new_line,name:name}}))
+                wsc.send(JSON.stringify({id_to:id_to,data:{type:'word',centence:new_line,name:name}}))
                 // console.log(id_to)
             }
         }
     })
+    //按下回车触发连接按钮
     document.getElementById("name").addEventListener("keydown",(evt)=>{
         if(evt.keyCode==13){
             document.getElementById("btn").click()
         }
     })
+    //按下回车触发发送按钮
     document.getElementById("ipt").addEventListener("keydown",(evt)=>{
         if(evt.keyCode==13){
             document.getElementById("btn_send").click()
             document.getElementById("ipt").value = ""
         }
     })
+
+    //视频流
+    const constraints = {
+        video:true,
+        audio:true
+    }
+    const local_video = document.querySelector("#local_video")
+    const remote_video = document.querySelector("#remote_video")
+    let local_stream
+
+    function gotLocalMediaStream(media_stream){
+        local_stream = media_stream
+        local_video.srcObject = media_stream
+        media_stream.getTracks().forEach(track=>{
+            peer_connection.addTrack(track,media_stream)
+        })
+    }
+
+    function handleLocalMediaStreamError(error){
+        console.log("navigator.getUserMedia error"+error)
+    }
+
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(gotLocalMediaStream)
+        .catch(handleLocalMediaStreamError)
+
+    //状态：发起连接等待回应状态，等待offer状态，协商完毕状态
+    const status = [
+        "wait_answer",
+        "wait_offer",
+        "end"
+    ]
+    let init_state = "wait_offer"
+    //ice
+    const servers_config = {
+        iceServers: [
+            {
+                urls: "stun:47.96.5.21:3478"
+            },
+            {
+                urls: "turn:47.96.5.21:3478",
+                username: "hzq",
+                credential: "123456"
+            }
+        ]
+    }
+    let peer_connection = new RTCPeerConnection(servers_config);
+    // peer_connection.addEventListener("icecandidate", (evt) => {
+    //     console.log('aaaaaaaaaaaaaaa')
+    //     if (evt.candidate) {
+    //         console.log('ICE candidate found:', evt.candidate);
+    //     } else {
+    //         console.log('ICE candidate gathering completed');
+    //     }
+    // });
+
+    // peer_connection.addEventListener("error", (error) => {
+    //     console.error('Error occurred:', error);
+    // });
+    //peer_connection.addEventListener("iceconnectionstatechange",handleConnectionChange)
+    // 创建offer或answer，触发ICE候选收集过程
+    
+    //点击视频连接
+    document.getElementById("connection").addEventListener("click",(evt)=>{
+        peer_connection.createOffer().then(async offer=>{
+            await peer_connection.setLocalDescription(offer)
+            for(let id_to of parter_id){
+                wsc.send(JSON.stringify({id_to:id_to,data:{type:"call_ICE",sdp:offer.sdp}}))
+            }
+        })
+    })
+    peer_connection.addEventListener("icecandidate",(evt)=>{
+        if(evt.candidate){
+            for(let id_to of parter_id){
+                wsc.send(JSON.stringify({id_to:id_to,data:{type:"candidate_ICE",candidate:evt.candidate}}))
+            }
+            console.log(evt.candidate)
+
+        }
+        
+    })
+    peer_connection.addEventListener("track",evt=>{
+        remote_video.srcObject = evt.streams[0]
+    })
+    
 </script>

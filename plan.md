@@ -52,22 +52,51 @@ https://zhuanlan.zhihu.com/p/624357784
 一对一视频通话：  
 1. 基于WebRTC(Web Real-Time Communications)，一种实时通讯技术，它允许网络应用或者站点，在不借助中间媒介的情况下，建立浏览器之间点对点（Peer-to-Peer）的连接，实现视频流和音频流或者其他任意数据的传输。
 2. 通讯过程：
-   1. 用户A和用户B获取自身的NAT后的地址（STUN Server）
-   2. 用户A和用户B通过一台中间服务器（信令服务器）交换各自支持的格式和NAT后的IP等信息。（媒体协商SDP和网络协商candidate）
-   3. 用户A和用户B开始连接通讯。（NAT穿越，穿越成功，P2P；否则借助中继服务器转发） 
+   1. 用户A和用户B获取自身的NAT后的地址（STUN Server  candidate）
+   2. 用户A和用户B通过一台中间服务器（信令服务器）交换各自支持的格式和NAT后的IP等信息。（ICE框架下  媒体协商SDP和网络协商candidate）
+   3. 用户A和用户B开始连接通讯。（ICE框架  NAT穿越，穿越成功，P2P；否则借助中继服务器转发） 
 3. STUN：一种网络协议，其目的是进行NAT穿越。能够检测网络中是否存在 NAT 设备，有就可以获取到 NAT 分配的 IP + 端口地址，然后建立一条可穿越NAT的P2P连接（这一过程就是打洞）。
-4. TURN：TURN 是 STUN 协议的扩展协议，其目的是如果 STUN 在无法打通的情况下，能够正常进行连接，其原理是通过一个中继服务器进行数据转发，此服务器需要拥有独立的公网 IP。
+4. TURN：TURN 是 STUN 协议的扩展协议，其目的是如果 STUN 在无法打通的情况下（对称NAT），能够正常进行连接，其原理是通过一个中继服务器进行数据转发，此服务器需要拥有独立的公网 IP。  
+
 **问题：**  
 1. 如何和对方建立初始连接？  
-   通过信令服务器交换对方的必要信息->尝试P2P通信（由于防火墙等原因，需要通过某种方式建立“白名单”）
+   通过信令服务器交换对方的必要信息->尝试P2P通信（由于防火墙等原因，需要通过某种方式建立“白名单”），实在不行通过中继服务器（TURN服务器）转发
 2. 如何确定双方共同支持的音视频格式？ 
 
 **5月28日：**  
 实现了在局域网内的信令服务器，客户端在能够访问信令服务器的前提下可以进行通信。  
+**5月29日：**   
+必要组件准备：  
+1. 将信令服务器部署在了阿里云上，通过访问地址可以进入一个聊天室互相文字通信  
+https://ecs.console.aliyun.com/server/i-bp1esun2ssvn8zkti5kh/detail?regionId=cn-hangzhou  
+阿里云服务器登陆密码：03160316aA  
+https证书签名密码：03160316
+
+2. coturn搭建：https://cloud.tencent.com/developer/article/1730301  
+realm = hzq.com  
+3. 使用OpenSSL自建一个HTTPS服务：https://www.cnblogs.com/Hui4401/p/14128112.html  
+（在http下，出于安全考量，navigator.mediaDevices.getUserMedia()会被浏览器拒绝，因此需要https）  
+
+总结：  
+1. Linux命令：
+   - nohup忽略挂起信号 
+   - &放置后台
+   - nohup [commond] & 可以使命令在关闭终端的时候也一直运行   
+   - 通过ps -ef找到对应的进程号，再kill，可以停止nohup对应的命令  https://www.cnblogs.com/yunwangjun-python-520/p/10713564.html https://blog.csdn.net/qq_36079986/article/details/110294300  
+2. 编写js代码可以参考状态机 状态+事件->行为+下一个状态  
+
+问题：  
+1. js里的异步函数 async?  
+2. 协商冲突怎么解决？
+3. 把(track,stream)加到peer_connection中是触发candidate收集的关键步骤
+https的原理  
+4. 版本管理
 
 
-
-
+WebRTC参考：  
+https://zhuanlan.zhihu.com/p/624357784  
+https://developers.google.cn/codelabs/webrtc-web?hl=zh-cn#3  
+https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Perfect_negotiation#perfect_negotiation_concepts  
 
 
 

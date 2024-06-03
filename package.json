@@ -2,6 +2,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "nodejs-websocket": "^1.7.2",
-    "ws": "^8.17.0"
+    "ws": "^8.17.0",
+    "wss": "^3.3.4"
   }
 }
