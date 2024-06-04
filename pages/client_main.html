@@ -26,9 +26,10 @@
                 align-items: center;
             }
             video{
-                width: 200px;
-                height: 170px;
+                width: 30vw;
+                height: 25vw;
             }
+            
             input,button{
                 padding: 3px;
                 margin: 3px;
@@ -46,7 +47,7 @@
                 <div id="res_show">等待结果返回...</div>
             </div>
             <div class="video-container">
-                <button id="connection">视频连接</button>
+                <button id="video_connection">视频连接</button>
                 <video id="local_video" autoplay playsinline></video>
                 <video id="remote_video" autoplay playsinline></video>
             </div>
@@ -56,51 +57,53 @@
 </html>
 
 <script>
-    var cnt = false //是否连接到信令服务器
-    var parter_id = new Set() //对方的id信息（信令服务器转发时需要用）
-    var wsc //web_socket_client 
-    var random_emo = ["&#128520;","&#128525;","&#128548;"]
+    let cnt = false //是否连接到信令服务器
+    let parter_id = new Set() //对方的id信息（信令服务器转发时需要用）
+    let wsc //web_socket_client 
+    let random_emo = ["&#128520;","&#128525;","&#128548;"]
+    let wss_addr = "wss://www.hzq2024.fun" //websocket的地址
     //点击按钮建立连接
     document.getElementById("btn").addEventListener("click",(evt)=>{
         if(cnt==false)
         {
-            var name = document.getElementById("name").value
+            let name = document.getElementById("name").value
             if(name.trim().length==0)window.alert("请输入名字")
             else{
-                wsc = new WebSocket("ws://47.96.5.21:3333")
+                wsc = new WebSocket(wss_addr)
                 wsc.onopen = (evt)=>{
-                    console.log("open:"+evt)
                     document.getElementById("res_show").innerHTML = "你已经连接到服务器啦 &#128512;"
                     cnt = true
                 }
                 wsc.onclose = (evt)=>{
-                    console.log("close:"+evt)
+                    console.log("close:"+evt.reason)
+                    cnt = true
                 }
                 wsc.onerror = (evt)=>{
-                    console.log("error:"+ evt)
+                    console.log("error:"+ evt.reason)
+                    cnt = true
                 }
                 wsc.onmessage = async (evt)=>{
-                    var data = JSON.parse(evt.data)
+                    let data = JSON.parse(evt.data)
                     if(data["type"]=="partner_id"){
                         parter_id.add(data["data"]["id"])
                         document.getElementById("res_show").innerHTML += ("<br>"+"叮叮叮，有人加入聊天室"+random_emo[Math.floor(Math.random()*3)])
-                        console.log(parter_id)
+                        // console.log(parter_id)
                     }
                     else if(data["type"]=="message"){
-                        var m_type = data["data"]["type"]
+                        let m_type = data["data"]["type"]
                         if(m_type=="word"){
-                            var centence = data["data"]["centence"]
+                            let centence = data["data"]["centence"]
                             document.getElementById("res_show").innerHTML += ("<br>"+centence)
                         }
                         else if(m_type=="answer"){
-                            var sdp = data["data"]["sdp"]
+                            let sdp = data["data"]["sdp"]
                             await peer_connection.setRemoteDescription({
                                 type:"answer",
                                 sdp:sdp
                             })
                         }
                         else if(m_type=="call_ICE"){
-                            var sdp = data["data"]["sdp"]
+                            let sdp = data["data"]["sdp"]
                             await peer_connection.setRemoteDescription({
                                 type:"offer",
                                 sdp:sdp
@@ -121,7 +124,7 @@
                     else if(data["type"]=="del_partner"){
                         parter_id.delete(data["data"]["id"])
                         document.getElementById("res_show").innerHTML += ("<br>"+"有人离开聊天室&#128557;")    
-                        console.log(parter_id)
+                        // console.log(parter_id)
                     }
                 }
             }
@@ -130,9 +133,9 @@
     //点击按钮进行发送
     document.getElementById("btn_send").addEventListener("click",(evt)=>{
         if(cnt==true){
-            var str = document.getElementById("ipt").value
-            var name = document.getElementById("name").value
-            var new_line = name+": "+str
+            let str = document.getElementById("ipt").value
+            let name = document.getElementById("name").value
+            let new_line = name+": "+str
             document.getElementById("res_show").innerHTML += ("<br>"+new_line)
             for(let id_to of parter_id){
                 wsc.send(JSON.stringify({id_to:id_to,data:{type:'word',centence:new_line,name:name}}))
@@ -175,17 +178,14 @@
         console.log("navigator.getUserMedia error"+error)
     }
 
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then(gotLocalMediaStream)
-        .catch(handleLocalMediaStreamError)
 
     //状态：发起连接等待回应状态，等待offer状态，协商完毕状态
-    const status = [
-        "wait_answer",
-        "wait_offer",
-        "end"
-    ]
-    let init_state = "wait_offer"
+    // const status = [
+    //     "wait_answer",
+    //     "wait_offer",
+    //     "end"
+    // ]
+    // let init_state = "wait_offer"
     //ice
     const servers_config = {
         iceServers: [
@@ -200,23 +200,12 @@
         ]
     }
     let peer_connection = new RTCPeerConnection(servers_config);
-    // peer_connection.addEventListener("icecandidate", (evt) => {
-    //     console.log('aaaaaaaaaaaaaaa')
-    //     if (evt.candidate) {
-    //         console.log('ICE candidate found:', evt.candidate);
-    //     } else {
-    //         console.log('ICE candidate gathering completed');
-    //     }
-    // });
-
-    // peer_connection.addEventListener("error", (error) => {
-    //     console.error('Error occurred:', error);
-    // });
-    //peer_connection.addEventListener("iceconnectionstatechange",handleConnectionChange)
-    // 创建offer或answer，触发ICE候选收集过程
     
     //点击视频连接
-    document.getElementById("connection").addEventListener("click",(evt)=>{
+    document.getElementById("video_connection").addEventListener("click",(evt)=>{
+        navigator.mediaDevices.getUserMedia(constraints)
+        .then(gotLocalMediaStream)
+        .catch(handleLocalMediaStreamError)
         peer_connection.createOffer().then(async offer=>{
             await peer_connection.setLocalDescription(offer)
             for(let id_to of parter_id){

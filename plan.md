@@ -56,7 +56,16 @@ https://zhuanlan.zhihu.com/p/624357784
    2. 用户A和用户B通过一台中间服务器（信令服务器）交换各自支持的格式和NAT后的IP等信息。（ICE框架下  媒体协商SDP和网络协商candidate）
    3. 用户A和用户B开始连接通讯。（ICE框架  NAT穿越，穿越成功，P2P；否则借助中继服务器转发） 
 3. STUN：一种网络协议，其目的是进行NAT穿越。能够检测网络中是否存在 NAT 设备，有就可以获取到 NAT 分配的 IP + 端口地址，然后建立一条可穿越NAT的P2P连接（这一过程就是打洞）。
-4. TURN：TURN 是 STUN 协议的扩展协议，其目的是如果 STUN 在无法打通的情况下（对称NAT），能够正常进行连接，其原理是通过一个中继服务器进行数据转发，此服务器需要拥有独立的公网 IP。  
+4. TURN：TURN 是 STUN 协议的扩展协议，其目的是如果 STUN 在无法打通的情况下（对称NAT），能够正常进行连接，其原理是通过一个中继服务器进行数据转发，此服务器需要拥有独立的公网 IP。 
+5. 各组件作用：
+   - 信令服务器：
+      1. 客户端之间在P2P前先建立初始连接
+      2. 信息转发（不关注信息的type）
+   - coturn服务器（为了实现P2P）：
+      1. 实现STUN协议，客户端可获取到NAT后地址，candidate
+      2. 实现TURN协议，P2P失败后的中继
+   - 客户端： 
+      1. 解析信息的type并采取相应行为  
 
 **问题：**  
 1. 如何和对方建立初始连接？  
@@ -68,7 +77,8 @@ https://zhuanlan.zhihu.com/p/624357784
 **5月29日：**   
 必要组件准备：  
 1. 将信令服务器部署在了阿里云上，通过访问地址可以进入一个聊天室互相文字通信  
-https://ecs.console.aliyun.com/server/i-bp1esun2ssvn8zkti5kh/detail?regionId=cn-hangzhou  
+https://ecs.console.aliyun.com/server/i-bp1esun2ssvn8zkti5kh/detail?regionId=cn-hangzhou   
+(注意控制台要放行相应端口)
 阿里云服务器登陆密码：03160316aA  
 https证书签名密码：03160316
 
