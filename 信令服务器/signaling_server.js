@@ -4,6 +4,7 @@ const http = require("http") //客户端与服务器第一次连接协议 获取
 const web_socket = require("ws") //后续转发协议
 const express = require("express") //中间件，发送初始页面
 const fs = require("fs") //读取文件
+const port = 80
 
 //配置信息
 
@@ -60,7 +61,7 @@ wss.on("connection",(ws)=>{
     ws.onerror = deleteFromSession
 })
 
-server.listen(80,()=>{
+server.listen(port,()=>{
     console.log('listening...')
 })
 

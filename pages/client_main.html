@@ -39,12 +39,11 @@
     <body>
         <div class="container">
             <div class="left-container">
-                姓名:<input id="name">
-                <button id="btn">(输入名字后请点击)连接</button>
+                昵称(可更改):<input id="name">
                 <br>
                 文本发送：<input id="ipt">
                 <button id="btn_send">发送</button>
-                <div id="res_show">等待结果返回...</div>
+                <div id="res_show">尝试连接中...</div>
             </div>
             <div class="video-container">
                 <button id="video_connection">视频连接</button>
@@ -57,52 +56,67 @@
 </html>
 
 <script>
-    let cnt = false //是否连接到信令服务器
     let parter_id = new Set() //对方的id信息（信令服务器转发时需要用）
     let wsc //web_socket_client 
     let random_emo = ["&#128520;","&#128525;","&#128548;"]
-    let wss_addr = "wss://www.hzq2024.fun" //websocket的地址
-    //点击按钮建立连接
-    document.getElementById("btn").addEventListener("click",(evt)=>{
-        if(cnt==false)
-        {
+    let random_name = ["猴子🐒","狗子🐶","兔子🐇","鼠鼠🐭","喷水的鲸🐳","喵🐱"]
+    // let wss_addr = "wss://www.hzq2024.fun" //websocket的地址
+    let wss_addr = "ws://localhost"
+    document.getElementById("name").value = random_name[Math.floor(Math.random()*random_name.length)]+Math.random().toString(16).substr(2,2)
+    //与信令服务器建立连接
+    const max_time = 5
+    let try_time = 0
+    let cnt = false //是否连接到信令服务器
+    function connectToServer(){
+        if(cnt==false){
+            try_time ++
             let name = document.getElementById("name").value
-            if(name.trim().length==0)window.alert("请输入名字")
-            else{
-                wsc = new WebSocket(wss_addr)
-                wsc.onopen = (evt)=>{
-                    document.getElementById("res_show").innerHTML = "你已经连接到服务器啦 &#128512;"
-                    cnt = true
+            wsc = new WebSocket(wss_addr)
+            wsc.onopen = (evt)=>{
+                document.getElementById("res_show").innerHTML += "<br>你已经连接到服务器啦 &#128512;"
+                cnt = true
+                try_time = 0
+            }
+            wsc.onclose = (evt)=>{
+                const now = (window.performance.now() / 1000).toFixed(3)
+                console.log(now,"close:"+evt.reason)
+                cnt = false
+                //重连机制
+                if(try_time<max_time){
+                    if(try_time==0)document.getElementById("res_show").innerHTML += "<br>尝试重连中......"
+                    connectToServer()
                 }
-                wsc.onclose = (evt)=>{
-                    console.log("close:"+evt.reason)
-                    cnt = true
+                else document.getElementById("res_show").innerHTML += "<br>连接服务器失败,请刷新尝试 &#128561;"
+            }
+            wsc.onerror = (evt)=>{
+                console.log("error:"+ evt.reason)
+            }
+            wsc.onmessage = async (evt)=>{
+                let data = JSON.parse(evt.data)
+                if(data["type"]=="partner_id"){
+                    parter_id.add(data["data"]["id"])
+                    document.getElementById("res_show").innerHTML += ("<br>"+"叮叮叮，有人加入聊天室"+random_emo[Math.floor(Math.random()*3)])
+                    // console.log(parter_id)
                 }
-                wsc.onerror = (evt)=>{
-                    console.log("error:"+ evt.reason)
-                    cnt = true
-                }
-                wsc.onmessage = async (evt)=>{
-                    let data = JSON.parse(evt.data)
-                    if(data["type"]=="partner_id"){
-                        parter_id.add(data["data"]["id"])
-                        document.getElementById("res_show").innerHTML += ("<br>"+"叮叮叮，有人加入聊天室"+random_emo[Math.floor(Math.random()*3)])
-                        // console.log(parter_id)
+                else if(data["type"]=="message"){
+                    let m_type = data["data"]["type"]
+                    if(m_type=="word"){
+                        let centence = data["data"]["centence"]
+                        document.getElementById("res_show").innerHTML += ("<br>"+centence)
                     }
-                    else if(data["type"]=="message"){
-                        let m_type = data["data"]["type"]
-                        if(m_type=="word"){
-                            let centence = data["data"]["centence"]
-                            document.getElementById("res_show").innerHTML += ("<br>"+centence)
-                        }
-                        else if(m_type=="answer"){
-                            let sdp = data["data"]["sdp"]
-                            await peer_connection.setRemoteDescription({
-                                type:"answer",
-                                sdp:sdp
-                            })
-                        }
-                        else if(m_type=="call_ICE"){
+                    else if(m_type=="answer"){
+                        let sdp = data["data"]["sdp"]
+                        await peer_connection.setRemoteDescription({
+                            type:"answer",
+                            sdp:sdp
+                        })
+                    }
+                    else if(m_type=="call_ICE"){
+                        let is_accept = confirm("发来视频连接,是否要接通并打开摄像头")
+                        if(is_accept){
+                            await navigator.mediaDevices.getUserMedia(constraints)
+                                .then(gotLocalMediaStream)
+                                .catch(handleLocalMediaStreamError)
                             let sdp = data["data"]["sdp"]
                             await peer_connection.setRemoteDescription({
                                 type:"offer",
@@ -115,19 +129,33 @@
                                 }
                             })
                         }
-                        else if(m_type=="candidate_ICE"){
-                            peer_connection.addIceCandidate(data["data"]["candidate"])
-                            // console.log(data["data"]["candidate"])
-                        }
-                        
                     }
-                    else if(data["type"]=="del_partner"){
-                        parter_id.delete(data["data"]["id"])
-                        document.getElementById("res_show").innerHTML += ("<br>"+"有人离开聊天室&#128557;")    
-                        // console.log(parter_id)
+                    else if(m_type=="candidate_ICE"){
+                        peer_connection.addIceCandidate(data["data"]["candidate"])
+                        // console.log(data["data"]["candidate"])
                     }
+                    
+                }
+                else if(data["type"]=="del_partner"){
+                    parter_id.delete(data["data"]["id"])
+                    document.getElementById("res_show").innerHTML += ("<br>"+"有人离开聊天室&#128557;")    
+                    // console.log(parter_id)
                 }
             }
+            
+        }
+    }
+    connectToServer()
+    //自定义昵称检测
+    document.getElementById("name").addEventListener("blur",(evt)=>{
+        let name_ipt = document.getElementById("name")
+        if(name_ipt.value.trim().length==0){
+            let x = prompt("昵称不能为空,请在下方输入昵称")
+            while(x==null || x.trim().length==0){
+                x = prompt("昵称不能为空,请在下方输入昵称")
+            }
+            name_ipt.value = x
+
         }
     })
     //点击按钮进行发送
@@ -139,14 +167,7 @@
             document.getElementById("res_show").innerHTML += ("<br>"+new_line)
             for(let id_to of parter_id){
                 wsc.send(JSON.stringify({id_to:id_to,data:{type:'word',centence:new_line,name:name}}))
-                // console.log(id_to)
             }
-        }
-    })
-    //按下回车触发连接按钮
-    document.getElementById("name").addEventListener("keydown",(evt)=>{
-        if(evt.keyCode==13){
-            document.getElementById("btn").click()
         }
     })
     //按下回车触发发送按钮
@@ -157,7 +178,7 @@
         }
     })
 
-    //视频流
+    //视频流及视频通话
     const constraints = {
         video:true,
         audio:true
@@ -177,7 +198,6 @@
     function handleLocalMediaStreamError(error){
         console.log("navigator.getUserMedia error"+error)
     }
-
 
     //状态：发起连接等待回应状态，等待offer状态，协商完毕状态
     // const status = [
@@ -202,8 +222,8 @@
     let peer_connection = new RTCPeerConnection(servers_config);
     
     //点击视频连接
-    document.getElementById("video_connection").addEventListener("click",(evt)=>{
-        navigator.mediaDevices.getUserMedia(constraints)
+    document.getElementById("video_connection").addEventListener("click",async (evt)=>{
+        await navigator.mediaDevices.getUserMedia(constraints)
         .then(gotLocalMediaStream)
         .catch(handleLocalMediaStreamError)
         peer_connection.createOffer().then(async offer=>{
@@ -225,5 +245,6 @@
     peer_connection.addEventListener("track",evt=>{
         remote_video.srcObject = evt.streams[0]
     })
+    
     
 </script>

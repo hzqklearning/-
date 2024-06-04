@@ -4,6 +4,7 @@ const https = require("https") //客户端与服务器第一次连接协议 获�
 const web_socket = require("ws") //后续转发协议
 const express = require("express") //中间件，发送初始页面
 const fs = require("fs") //读取文件
+const port = 443
 
 //配置信息
 const options = {
@@ -64,7 +65,7 @@ wss.on("connection",(ws)=>{
     ws.onerror = deleteFromSession
 })
 
-server.listen(443,()=>{
+server.listen(port,()=>{
     console.log('listening...')
 })
 
